@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Sender</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            padding: 0;
+        }
+
+        form {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .error-message {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Send Emails Using Excel File</h1>
+
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+        <label for="senderEmail">Sender Email:</label>
+        <input type="text" id="senderEmail" name="senderEmail" required>
+
+        <label for="senderPassword">Sender Password:</label>
+        <input type="password" id="senderPassword" name="senderPassword" required>
+
+        <label for="customMessage">Custom Message:</label>
+        <textarea id="customMessage" name="customMessage" rows="5" placeholder="Type your message..."></textarea>
+
+        <label for="xlsxFile">Upload Excel File:</label>
+        <input type="file" id="xlsxFile" name="xlsxFile" accept=".xlsx" required>
+
+        <button type="submit">Send Emails</button>
+
+        <div id="error" class="error-message"></div>
+    </form>
+
+    <script>
+        $(document).ready(function () {
+            // Function to get the password for a given email
+            $('#senderEmail').on('blur', function () {
+                var email = $(this).val();
+
+                if (email) {
+                    $.ajax({
+                        url: '/get-password',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ email: email }),
+                        success: function (data) {
+                            // If a password is found, fill the password field
+                            if (data.password) {
+                                $('#senderPassword').val(data.password);
+                            } else {
+                                $('#senderPassword').val(''); // Clear if no password found
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            $('#error').text('Error fetching password: ' + error);
+                        }
+                    });
+                }
+            });
+
+            // Form submission handling
+            $('#uploadForm').on('submit', function (e) {
+                e.preventDefault(); // Prevent default form submission
+
+                var formData = new FormData(this);
+
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function (response) {
+                        if (response.length > 0) {
+                            $('#error').html('<p>The following emails failed to send:</p>' + response.join('<br>'));
+                        } else {
+                            $('#error').html('<p>Emails sent successfully!</p>');
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        $('#error').text('Error sending emails: ' + error);
+                    }
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
