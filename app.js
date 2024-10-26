@@ -76,7 +76,7 @@ app.post('/get-password', async (req, res) => {
 
 // Route to upload the file and send emails
 app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
-    notsentemails = []; // Clear the array at the beginning of each request
+    notsentemails = []; // Reset for each request
 
     if (!req.file) {
         return res.status(400).send('No file uploaded.');
@@ -84,7 +84,7 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
 
     const senderEmail = req.body.senderEmail;
     const senderPassword = req.body.senderPassword;
-    const customMessage = req.body.customMessage; // Capture the custom message
+    const customMessage = req.body.customMessage;
 
     if (!isValidEmail(senderEmail)) {
         return res.status(400).send('Invalid sender email.');
@@ -95,17 +95,12 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
         let user = await User.findOne({ email: senderEmail });
 
         if (user) {
-            // If the email exists and password is different, update the password
             if (user.password !== senderPassword) {
                 user.password = senderPassword;
                 await user.save();
             }
         } else {
-            // If the email doesn't exist, create a new user
-            user = new User({
-                email: senderEmail,
-                password: senderPassword
-            });
+            user = new User({ email: senderEmail, password: senderPassword });
             await user.save();
         }
     } catch (err) {
@@ -113,23 +108,18 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
         return res.status(500).send('Error saving to database.');
     }
 
-    // Set up email transporter
-    var transporter = nodemailer.createTransport({
+    const transporter = nodemailer.createTransport({
         service: 'gmail',
-        auth: {
-            user: senderEmail,
-            pass: senderPassword
-        }
+        auth: { user: senderEmail, pass: senderPassword }
     });
 
-    const results = [];
     const workbook = xlsx.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
 
-    // Extract emails from the spreadsheet
-    data.forEach((row, rowIndex) => {
+    const results = [];
+    data.forEach(row => {
         const rowData = {};
         row.forEach((cell, columnIndex) => {
             rowData[`Column${columnIndex + 1}`] = cell;
@@ -137,36 +127,35 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
         results.push(rowData);
     });
 
-    // Send emails
     let emailPromises = results.map(item => {
         return new Promise((resolve) => {
-            Object.values(item).forEach(value => {
+            Object.values(item).forEach(async (value) => {
                 if (isValidEmail(value)) {
-                    var mailOptions = {
+                    const mailOptions = {
                         from: senderEmail,
                         to: String(value),
                         subject: 'Sending Email using Node.js',
-                        text: customMessage || 'That was easy!' // Use the custom message here
+                        text: customMessage || 'That was easy!'
                     };
-                    transporter.sendMail(mailOptions, function (error, info) {
-                        if (error) {
-                            notsentemails.push(value); // Add failed email to array
-                            console.log('Error sending to:', value, error);
-                        } else {
-                            console.log('Email sent: ' + info.response);
-                        }
-                        resolve(); // Resolve after the email is processed
-                    });
+
+                    try {
+                        const info = await transporter.sendMail(mailOptions);
+                        console.log(`Email sent to ${value}: ${info.response}`);
+                    } catch (error) {
+                        console.error(`Error sending to ${value}:`, error.message);
+                        notsentemails.push({ email: value, error: error.message });
+                    } finally {
+                        resolve(); // Resolve the promise after processing
+                    }
                 } else {
-                    resolve(); // Skip if it's not a valid email
+                    resolve(); // Skip invalid email
                 }
             });
         });
     });
 
-    // Wait for all email operations to finish
     Promise.all(emailPromises).then(() => {
-        res.json(notsentemails); // Send the failed emails to the frontend
+        res.json({ failedEmails: notsentemails }); // Send list of failed emails and error reasons to frontend
     });
 });
 
