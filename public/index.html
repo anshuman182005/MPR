@@ -6,129 +6,6 @@
     <title>Email Sender</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f7f6;
-            color: #333;
-            margin: 0;
-            padding: 0;
-        }
-
-        h1 {
-            text-align: center;
-            color: #007bff;
-            margin-bottom: 40px;
-        }
-
-        form {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        label {
-            font-weight: bold;
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-        }
-
-        input[type="text"], input[type="password"], textarea, input[type="file"] {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0 20px 0;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 16px;
-            background-color: #f9f9f9;
-        }
-
-        input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
-            border-color: #007bff;
-            outline: none;
-        }
-
-        textarea {
-            resize: vertical;
-        }
-
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #007bff;
-            color: white;
-            font-size: 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            margin-top: 20px;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        .error-message {
-            color: red;
-            font-weight: bold;
-            margin-top: 20px;
-            text-align: center;
-        }
-
-        /* Media Queries for responsive design */
-        @media (max-width: 768px) {
-            body {
-                padding: 20px;
-            }
-
-            h1 {
-                font-size: 24px;
-            }
-
-            form {
-                padding: 15px;
-            }
-
-            input[type="text"], input[type="password"], textarea, input[type="file"] {
-                font-size: 14px;
-                padding: 10px;
-            }
-
-            button {
-                padding: 10px;
-                font-size: 14px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            h1 {
-                font-size: 20px;
-                margin-bottom: 20px;
-            }
-
-            form {
-                padding: 10px;
-            }
-
-            button {
-                font-size: 13px;
-            }
-
-            input[type="text"], input[type="password"], textarea, input[type="file"] {
-                font-size: 12px;
-                padding: 8px;
-            }
-        }
-    </style> -->
 </head>
 <body>
 
@@ -150,11 +27,12 @@
         <button type="submit">Send Emails</button>
 
         <div id="error" class="error-message"></div>
+        <div id="success" class="success-message"></div>
     </form>
 
     <script>
         $(document).ready(function () {
-            // Function to get the password for a given email
+            // Fetch password for saved email on blur
             $('#senderEmail').on('blur', function () {
                 var email = $(this).val();
 
@@ -165,7 +43,6 @@
                         contentType: 'application/json',
                         data: JSON.stringify({ email: email }),
                         success: function (data) {
-                            // If a password is found, fill the password field
                             if (data.password) {
                                 $('#senderPassword').val(data.password);
                             } else {
@@ -181,7 +58,7 @@
 
             // Form submission handling
             $('#uploadForm').on('submit', function (e) {
-                e.preventDefault(); // Prevent default form submission
+                e.preventDefault();
 
                 var formData = new FormData(this);
 
@@ -192,10 +69,18 @@
                     contentType: false,
                     processData: false,
                     success: function (response) {
-                        if (response.length > 0) {
-                            $('#error').html('<p>The following emails failed to send:</p>' + response.join('<br>'));
+                        $('#error').empty(); // Clear error messages
+                        $('#success').empty(); // Clear success message
+
+                        if (response.failedEmails && response.failedEmails.length > 0) {
+                            let errorList = `<p>The following emails failed to send:</p><ul>`;
+                            response.failedEmails.forEach(item => {
+                                errorList += `<li>${item.email}: ${item.error}</li>`;
+                            });
+                            errorList += `</ul>`;
+                            $('#error').html(errorList);
                         } else {
-                            $('#error').html('<p>Emails sent successfully!</p>');
+                            $('#success').val('<p>All emails sent successfully!</p>');
                         }
                     },
                     error: function (xhr, status, error) {
