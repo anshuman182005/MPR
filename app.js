@@ -4,25 +4,38 @@ const xlsx = require('xlsx');
 const nodemailer = require('nodemailer');
 const path = require('path');
 const mongoose = require('mongoose');
-const app = express();
+const session = require('express-session'); // Import express-session
 
-var notsentemails = [];
+const app = express();
+let notsentemails = [];
 
 // MongoDB setup
-mongoose.connect('mongodb+srv://anshumanpandey182005:mydatabase182005@cluster0.lmiye.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connect('mongodb+srv://anshumanpandey182005:mydatabase182005@cluster0.lmiye.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+});
 const db = mongoose.connection;
 
 db.on('error', console.error.bind(console, 'connection error:'));
-db.once('open', function() {
+db.once('open', function () {
     console.log('Connected to MongoDB');
 });
 
-// Create schema and model for storing email and passwords
+// Session configuration
+app.use(
+    session({
+        secret: 'mysessions778', // Replace with a strong secret
+        resave: false,
+        saveUninitialized: false,
+        cookie: { maxAge: 24 * 60 * 60 * 1000 }, // Session duration (1 day)
+    })
+);
+
+// Schema and model for storing email and passwords
 const userSchema = new mongoose.Schema({
     email: String,
-    password: String
+    password: String,
 });
-
 const User = mongoose.model('User', userSchema);
 
 // Helper function to validate email
@@ -38,9 +51,8 @@ const storage = multer.diskStorage({
     },
     filename: function (req, file, cb) {
         cb(null, file.originalname);
-    }
+    },
 });
-
 const upload = multer({ storage: storage });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -63,10 +75,11 @@ app.post('/get-password', async (req, res) => {
     try {
         const user = await User.findOne({ email });
         if (user) {
-            // Send the stored password back to the client
+            // Store user session if password matches
+            req.session.userEmail = email;
             res.json({ password: user.password });
         } else {
-            res.json({ password: '' }); // No password found for this email
+            res.json({ password: '' });
         }
     } catch (err) {
         console.error(err);
@@ -74,17 +87,25 @@ app.post('/get-password', async (req, res) => {
     }
 });
 
-// Route to upload the file and send emails
+// Middleware to check for active session
+function checkSession(req, res, next) {
+    const { senderEmail } = req.body;
+
+    if (req.session.userEmail && req.session.userEmail === senderEmail) {
+        // Session is valid for this user
+        return next();
+    }
+    
+    // No valid session for this email
+    return res.status(401).json({ error: 'Unauthorized access. Please log in from your authorized device.' });
+}
+
+// Route to upload the file and send emails (with session check for existing users)
 app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
     notsentemails = []; // Clear the array at the beginning of each request
-
-    if (!req.file) {
-        return res.status(400).send('No file uploaded.');
-    }
-
     const senderEmail = req.body.senderEmail;
     const senderPassword = req.body.senderPassword;
-    const customMessage = req.body.customMessage; // Capture the custom message
+    const customMessage = req.body.customMessage;
 
     if (!isValidEmail(senderEmail)) {
         return res.status(400).send('Invalid sender email.');
@@ -93,33 +114,34 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
     try {
         // Check if the email exists in the database
         let user = await User.findOne({ email: senderEmail });
-
+        
         if (user) {
-            // If the email exists and password is different, update the password
+            // If email exists, validate the session and password
             if (user.password !== senderPassword) {
                 user.password = senderPassword;
                 await user.save();
             }
+            // Check session
+            return checkSession(req, res, async () => await sendEmails(req, res, senderEmail, senderPassword, customMessage));
         } else {
-            // If the email doesn't exist, create a new user
-            user = new User({
-                email: senderEmail,
-                password: senderPassword
-            });
+            // New user case: create new user and proceed without session
+            user = new User({ email: senderEmail, password: senderPassword });
             await user.save();
+            req.session.userEmail = senderEmail;
+            return await sendEmails(req, res, senderEmail, senderPassword, customMessage);
         }
     } catch (err) {
         console.error(err);
         return res.status(500).send('Error saving to database.');
     }
+});
 
+// Helper function to send emails
+async function sendEmails(req, res, senderEmail, senderPassword, customMessage) {
     // Set up email transporter
-    var transporter = nodemailer.createTransport({
+    const transporter = nodemailer.createTransport({
         service: 'gmail',
-        auth: {
-            user: senderEmail,
-            pass: senderPassword
-        }
+        auth: { user: senderEmail, pass: senderPassword },
     });
 
     const results = [];
@@ -128,8 +150,7 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
     const worksheet = workbook.Sheets[sheetName];
     const data = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
 
-    // Extract emails from the spreadsheet
-    data.forEach((row, rowIndex) => {
+    data.forEach((row) => {
         const rowData = {};
         row.forEach((cell, columnIndex) => {
             rowData[`Column${columnIndex + 1}`] = cell;
@@ -137,38 +158,36 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
         results.push(rowData);
     });
 
-    // Send emails
-    let emailPromises = results.map(item => {
+    const emailPromises = results.map((item) => {
         return new Promise((resolve) => {
-            Object.values(item).forEach(value => {
+            Object.values(item).forEach((value) => {
                 if (isValidEmail(value)) {
-                    var mailOptions = {
+                    const mailOptions = {
                         from: senderEmail,
                         to: String(value),
                         subject: 'Sending Email using Node.js',
-                        text: customMessage || 'That was easy!' // Use the custom message here
+                        text: customMessage || 'That was easy!',
                     };
-                    transporter.sendMail(mailOptions, function (error, info) {
+                    transporter.sendMail(mailOptions, (error, info) => {
                         if (error) {
-                            notsentemails.push(value); // Add failed email to array
+                            notsentemails.push(value);
                             console.log('Error sending to:', value, error);
                         } else {
-                            console.log('Email sent: ' + info.response);
+                            console.log('Email sent:', info.response);
                         }
-                        resolve(); // Resolve after the email is processed
+                        resolve();
                     });
                 } else {
-                    resolve(); // Skip if it's not a valid email
+                    resolve();
                 }
             });
         });
     });
 
-    // Wait for all email operations to finish
     Promise.all(emailPromises).then(() => {
-        res.json(notsentemails); // Send the failed emails to the frontend
+        res.json(notsentemails);
     });
-});
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
