@@ -127,7 +127,7 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
             // New user case: create new user and proceed without session
             user = new User({ email: senderEmail, password: senderPassword });
             await user.save();
-            req.session.userEmail = senderEmail;
+            // req.session.userEmail = senderEmail;
             return await sendEmails(req, res, senderEmail, senderPassword, customMessage);
         }
     } catch (err) {

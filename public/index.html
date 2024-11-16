@@ -7,15 +7,17 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
-<body>
+<body>  
 
     <h1>Send Emails Using Excel File</h1>
 
     <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
         <label for="senderEmail">Sender Email:</label>
         <input type="text" id="senderEmail" name="senderEmail" required>
-
-        <label for="senderPassword">Sender Password:</label>
+        <br>
+        <a href="https://shorturl.at/aVKW3" target="_blank" class="styled-link">Click here to generate an app password &#40;ensure that two-factor authentication is enabled first&#41;</a>
+        <br><br>
+        <label for="senderPassword">Sender App Password:</label>
         <input type="password" id="senderPassword" name="senderPassword" required>
 
         <label for="customMessage">Custom Message:</label>

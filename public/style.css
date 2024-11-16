@@ -2,17 +2,39 @@
     box-sizing: border-box;
 }
 
+.styled-link {
+    color: #007bff;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 16px;
+    display: inline-block;
+    margin: 10px 0;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+.styled-link:hover {
+    color: #0056b3;
+    text-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+    cursor: pointer;
+}
+
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f7f6;
-    color: #333;
+    /* background-color: #f4f7f6; */
+    /* color: #333; */
+    background-image: url('https://i.postimg.cc/wj5bD0f3/emaiilimagempr.jpg');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-position: center;
     margin: 0;
     padding: 0;
 }
 
 h1 {
     text-align: center;
-    color: #007bff;
+    color: #fff;
+    /* color: #007bff; */
     margin-bottom: 40px;
 }
 
