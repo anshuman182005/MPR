@@ -75,11 +75,14 @@ app.post('/get-password', async (req, res) => {
     try {
         const user = await User.findOne({ email });
         if (user) {
-            // Store user session if password matches
-            req.session.userEmail = email;
-            res.json({ password: user.password });
+            // Check if the session matches the email
+            if (req.session.userEmail === email) {
+                res.json({ password: user.password }); // Return the password if session is valid
+            } else {
+                res.json({ password: '' }); // Blank password if session is not valid
+            }
         } else {
-            res.json({ password: '' });
+            res.json({ password: '' }); // Blank password if user does not exist
         }
     } catch (err) {
         console.error(err);
@@ -116,18 +119,23 @@ app.post('/upload', upload.single('xlsxFile'), async (req, res) => {
         let user = await User.findOne({ email: senderEmail });
         
         if (user) {
-            // If email exists, validate the session and password
-            if (user.password !== senderPassword) {
-                user.password = senderPassword;
-                await user.save();
+            // Validate the session and password
+            if (req.session.userEmail === senderEmail) {
+                // If session is valid, proceed with the saved password
+                return await sendEmails(req, res, senderEmail, senderPassword, customMessage);
+            } else if (user.password === senderPassword) {
+                // If the password matches but no valid session, update session and proceed
+                req.session.userEmail = senderEmail;
+                return await sendEmails(req, res, senderEmail, senderPassword, customMessage);
+            } else {
+                // If session is invalid and password doesn't match
+                return res.status(401).json({ error: 'Unauthorized. Please enter a valid password.' });
             }
-            // Check session
-            return checkSession(req, res, async () => await sendEmails(req, res, senderEmail, senderPassword, customMessage));
         } else {
-            // New user case: create new user and proceed without session
-            user = new User({ email: senderEmail, password: senderPassword });
-            await user.save();
-            // req.session.userEmail = senderEmail;
+            // New user case: save their credentials and proceed
+            const newUser = new User({ email: senderEmail, password: senderPassword });
+            await newUser.save();
+            req.session.userEmail = senderEmail; // Start a new session for the user
             return await sendEmails(req, res, senderEmail, senderPassword, customMessage);
         }
     } catch (err) {

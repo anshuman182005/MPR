@@ -44,11 +44,11 @@
                         contentType: 'application/json',
                         data: JSON.stringify({ email: email }),
                         success: function (data) {
-                            // If a password is found, fill the password field
                             if (data.password) {
                                 $('#senderPassword').val(data.password);
                             } else {
-                                $('#senderPassword').val(''); // Clear if no password found
+                                $('#senderPassword').val(''); // Clear the password field
+                                $('#error').text('Please manually enter your app password.');
                             }
                         },
                         error: function (xhr, status, error) {
@@ -57,6 +57,7 @@
                     });
                 }
             });
+
 
             // Form submission handling
             $('#uploadForm').on('submit', function (e) {
